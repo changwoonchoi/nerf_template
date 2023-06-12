@@ -18,6 +18,7 @@ class OrbitCamera:
         self.center = np.array([0, 0, 0], dtype=np.float32) # look at this point
         self.rot = R.from_matrix(np.eye(3))
         self.up = np.array([0, 0, 1], dtype=np.float32) # need to be normalized!
+        self.move_speed = 0.05
 
     # pose
     @property
@@ -68,6 +69,30 @@ class OrbitCamera:
     def pan(self, dx, dy, dz=0):
         # pan in camera coordinate system (careful on the sensitivity!)
         self.center += 0.0005 * self.rot.as_matrix()[:3, :3] @ np.array([dx, -dy, dz])
+
+    def on_key_down(self, mv_key):
+        right = self.rot.as_matrix()[:3, 0]
+        up = -self.rot.as_matrix()[:3, 1]
+        forward = self.rot.as_matrix()[:3, 2]
+        if mv_key == dpg.mvKey_W:
+            self.center += forward * self.move_speed
+        elif mv_key == dpg.mvKey_S:
+            self.center += forward * -self.move_speed
+        elif mv_key == dpg.mvKey_A:
+            self.center += right * -self.move_speed
+        elif mv_key == dpg.mvKey_D:
+            self.center += right * self.move_speed
+        elif mv_key == dpg.mvKey_Q:
+            self.center += up * self.move_speed
+        elif mv_key == dpg.mvKey_E:
+            self.center += up * -self.move_speed
+        elif mv_key == dpg.mvKey_R:
+            self.center = np.array([0, 0, 0], dtype=np.float32)
+            self.rot = R.from_matrix(np.eye(3))
+        elif mv_key == dpg.mvKey_Escape:
+            dpg.stop_dearpygui()
+        else:
+            return
     
 
 class NeRFGUI:
@@ -407,11 +432,20 @@ class NeRFGUI:
             if self.debug:
                 dpg.set_value("_log_pose", str(self.cam.pose))
 
+        def on_key_down(sender, app_data):
+            if not dpg.is_item_focused("_primary_window"):
+                return
+            self.cam.on_key_down(app_data[0])
+            self.need_update = True
+            if self.debug:
+                dpg.set_value("_log_pose", str(self.cam.pose))
+
 
         with dpg.handler_registry():
             dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Left, callback=callback_camera_drag_rotate)
             dpg.add_mouse_wheel_handler(callback=callback_camera_wheel_scale)
             dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Right, callback=callback_camera_drag_pan)
+            dpg.add_key_down_handler(callback=on_key_down)
 
         
         dpg.create_viewport(title='torch-ngp', width=self.W, height=self.H, resizable=False)
